@@ -31,15 +31,18 @@ namespace ErenshorDedicatedServer.Persistence
         // In-memory buffers of recorded data (zone -> list of recorded spawns)
         private readonly ConcurrentDictionary<string, List<RecordedSpawn>> _recordedSpawns = new();
         private readonly ConcurrentDictionary<string, RecordedNpc> _recordedNpcs = new();
+        private readonly ConcurrentDictionary<string, RecordedItem> _recordedItems = new();
 
         // Track what we've flushed to disk to avoid duplicates
         private readonly ConcurrentDictionary<string, HashSet<int>> _flushedSpawnerIds = new();
+        private readonly HashSet<string> _flushedItemIds = new();
 
         private bool _isRecording;
         private bool _isFullGrab;
         private DateTime _lastFlush;
         private int _totalRecordedSpawns;
         private int _totalRecordedNpcs;
+        private int _totalRecordedItems;
         private int _zonesRecorded;
 
         // Flush buffer to disk every N seconds
@@ -49,6 +52,7 @@ namespace ErenshorDedicatedServer.Persistence
         public bool IsFullGrab => _isFullGrab;
         public int TotalRecordedSpawns => _totalRecordedSpawns;
         public int TotalRecordedNpcs => _totalRecordedNpcs;
+        public int TotalRecordedItems => _totalRecordedItems;
         public int ZonesRecorded => _zonesRecorded;
 
         public DataRecorder(ServerConfig config, SpawnDefinitionLoader spawnLoader)
@@ -103,6 +107,9 @@ namespace ErenshorDedicatedServer.Persistence
         {
             if (!_isRecording) return;
             if (string.IsNullOrWhiteSpace(zone) || string.IsNullOrWhiteSpace(npcId)) return;
+
+            // Skip SIMs and PETs - they're player-bound companions, not world spawns
+            if (entityType == EntityType.SIM || entityType == EntityType.PET) return;
 
             // Skip if this spawner was already flushed to disk
             if (_flushedSpawnerIds.TryGetValue(zone, out var flushed) && flushed.Contains(spawnerId))
@@ -167,6 +174,64 @@ namespace ErenshorDedicatedServer.Persistence
         }
 
         /// <summary>
+        /// Records an item seen in the world (from gear or drops).
+        /// Builds a registry of known item IDs and their observed properties.
+        /// Full item stats (damage, armor, effects) require client decompilation.
+        /// </summary>
+        public void RecordItem(string itemId, byte slotType = 0, byte quality = 0, string sourceZone = "")
+        {
+            if (!_isRecording) return;
+            if (string.IsNullOrWhiteSpace(itemId)) return;
+            if (_flushedItemIds.Contains(itemId)) return;
+
+            if (_recordedItems.TryGetValue(itemId, out var existing))
+            {
+                // Update with richer data if available
+                if (slotType != 0 && existing.SlotType == 0) existing.SlotType = slotType;
+                if (quality != 0 && existing.Quality == 0) existing.Quality = quality;
+                if (!string.IsNullOrEmpty(sourceZone) && !existing.SeenInZones.Contains(sourceZone))
+                    existing.SeenInZones.Add(sourceZone);
+                return;
+            }
+
+            var item = new RecordedItem
+            {
+                ItemId = itemId,
+                SlotType = slotType,
+                Quality = quality,
+                RecordedAt = DateTime.UtcNow
+            };
+            if (!string.IsNullOrEmpty(sourceZone))
+                item.SeenInZones.Add(sourceZone);
+
+            if (_recordedItems.TryAdd(itemId, item))
+                _totalRecordedItems++;
+        }
+
+        /// <summary>
+        /// Records all gear items from a player's equipment.
+        /// Called when gear data is received in PLAYER_DATA packets.
+        /// </summary>
+        public void RecordGearItems(IEnumerable<(byte slotType, string itemId, byte quality)> gearItems)
+        {
+            if (!_isRecording) return;
+
+            foreach (var (slotType, itemId, quality) in gearItems)
+            {
+                RecordItem(itemId, slotType, quality);
+            }
+        }
+
+        /// <summary>
+        /// Records an item from a world drop.
+        /// </summary>
+        public void RecordDroppedItem(string itemId, string zone, int quality)
+        {
+            if (!_isRecording) return;
+            RecordItem(itemId, sourceZone: zone, quality: (byte)Math.Clamp(quality, 0, 255));
+        }
+
+        /// <summary>
         /// Called when a zone has had all its entities reported by the zone owner.
         /// Marks the zone as "recorded" for full data grab tracking.
         /// </summary>
@@ -207,14 +272,15 @@ namespace ErenshorDedicatedServer.Persistence
         /// </summary>
         public void FlushToDisk()
         {
-            if (_totalRecordedSpawns == 0 && _totalRecordedNpcs == 0)
+            if (_totalRecordedSpawns == 0 && _totalRecordedNpcs == 0 && _totalRecordedItems == 0)
                 return;
 
             try
             {
                 FlushSpawnDefinitions();
                 FlushNpcDefinitions();
-                ServerLogger.Debug($"Flushed recorded data: {_totalRecordedSpawns} spawns, {_totalRecordedNpcs} NPCs", "RECORD");
+                FlushItemDefinitions();
+                ServerLogger.Debug($"Flushed recorded data: {_totalRecordedSpawns} spawns, {_totalRecordedNpcs} NPCs, {_totalRecordedItems} items", "RECORD");
             }
             catch (Exception ex)
             {
@@ -424,6 +490,61 @@ namespace ErenshorDedicatedServer.Persistence
             File.WriteAllText(tempPath, output);
             File.Move(tempPath, path, overwrite: true);
         }
+
+        private void FlushItemDefinitions()
+        {
+            if (_recordedItems.IsEmpty) return;
+
+            var path = "data/items.json";
+
+            // Load existing file
+            ItemDefinitionFile file = null;
+            if (File.Exists(path))
+            {
+                try
+                {
+                    var json = File.ReadAllText(path);
+                    file = JsonConvert.DeserializeObject<ItemDefinitionFile>(json);
+                }
+                catch { /* Start fresh if corrupt */ }
+            }
+
+            file ??= new ItemDefinitionFile();
+            file.Items ??= new List<ItemDefinition>();
+
+            // Merge recorded items
+            foreach (var kvp in _recordedItems)
+            {
+                var recorded = kvp.Value;
+
+                if (file.Items.Any(i => i.ItemId == recorded.ItemId))
+                {
+                    _flushedItemIds.Add(recorded.ItemId);
+                    continue;
+                }
+
+                file.Items.Add(new ItemDefinition
+                {
+                    ItemId = recorded.ItemId,
+                    SlotType = recorded.SlotType,
+                    Quality = recorded.Quality,
+                    SeenInZones = recorded.SeenInZones.ToList(),
+                    FirstRecorded = recorded.RecordedAt
+                });
+
+                _flushedItemIds.Add(recorded.ItemId);
+            }
+
+            // Write atomically
+            var dir = Path.GetDirectoryName(path);
+            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                Directory.CreateDirectory(dir);
+
+            var tempPath = path + ".tmp";
+            var output = JsonConvert.SerializeObject(file, Formatting.Indented);
+            File.WriteAllText(tempPath, output);
+            File.Move(tempPath, path, overwrite: true);
+        }
     }
 
     // ====================================================
@@ -457,5 +578,59 @@ namespace ErenshorDedicatedServer.Persistence
         public bool IsRare { get; set; }
         public string EntityType { get; set; }
         public bool HasSyncedStats { get; set; }
+    }
+
+    internal class RecordedItem
+    {
+        public string ItemId { get; set; }
+        public byte SlotType { get; set; }
+        public byte Quality { get; set; }
+        public List<string> SeenInZones { get; set; } = new();
+        public DateTime RecordedAt { get; set; }
+    }
+
+    // ====================================================
+    // ITEM PERSISTENCE STRUCTURES
+    // ====================================================
+
+    public class ItemDefinitionFile
+    {
+        [JsonProperty("items")]
+        public List<ItemDefinition> Items { get; set; } = new();
+    }
+
+    public class ItemDefinition
+    {
+        [JsonProperty("item_id")]
+        public string ItemId { get; set; } = "";
+
+        [JsonProperty("slot_type")]
+        public byte SlotType { get; set; }
+
+        [JsonProperty("quality")]
+        public byte Quality { get; set; }
+
+        /// <summary>
+        /// Zones where this item has been observed (gear or drops).
+        /// Useful for identifying zone-specific loot tables.
+        /// </summary>
+        [JsonProperty("seen_in_zones")]
+        public List<string> SeenInZones { get; set; } = new();
+
+        [JsonProperty("first_recorded")]
+        public DateTime FirstRecorded { get; set; }
+
+        // Placeholder fields for post-decompilation enrichment
+        [JsonProperty("display_name")]
+        public string DisplayName { get; set; } = "";
+
+        [JsonProperty("description")]
+        public string Description { get; set; } = "";
+
+        [JsonProperty("item_type")]
+        public string ItemType { get; set; } = "";
+
+        [JsonProperty("stats")]
+        public Dictionary<string, int> Stats { get; set; } = new();
     }
 }

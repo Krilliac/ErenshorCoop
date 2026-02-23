@@ -216,6 +216,7 @@ namespace ErenshorDedicatedServer.World
                                 if (_zones.TryGetValue(prevZone, out var prevZoneState))
                                 {
                                     prevZoneState.Entities.Clear();
+                                    prevZoneState.IsServerPopulated = false;
                                     ServerLogger.Debug($"Zone {prevZone} now empty, cleared entities", "ZONE");
                                 }
                             }
@@ -418,6 +419,12 @@ namespace ErenshorDedicatedServer.World
         public string DisplayName { get; set; }
         public int MaxNpcs { get; set; }
         public ConcurrentDictionary<short, ServerEntity> Entities { get; } = new();
+
+        /// <summary>
+        /// Whether the server has sent authoritative spawn commands for this zone.
+        /// Reset when zone empties. Used to prevent duplicate population.
+        /// </summary>
+        public bool IsServerPopulated { get; set; }
     }
 
     /// <summary>

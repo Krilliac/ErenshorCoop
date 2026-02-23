@@ -87,6 +87,9 @@ namespace ErenshorDedicatedServer.Persistence
                     SkinColorB = session.SkinColorB,
                     LastSaved = DateTime.UtcNow,
                     TotalPlayTimeSeconds = (DateTime.UtcNow - session.ConnectedAt).TotalSeconds,
+                    GroupId = session.GroupId,
+                    PetEntityId = session.PetEntityId,
+                    TargetId = session.TargetId,
                 };
 
                 // Save gear
@@ -345,6 +348,16 @@ namespace ErenshorDedicatedServer.Persistence
         // Stats
         [JsonProperty("stats")]
         public StatsSaveData Stats { get; set; } = new();
+
+        // Group/social
+        [JsonProperty("group_id")]
+        public int GroupId { get; set; } = -1;
+
+        [JsonProperty("pet_entity_id")]
+        public short PetEntityId { get; set; } = -1;
+
+        [JsonProperty("target_id")]
+        public short TargetId { get; set; } = -1;
 
         // Metadata
         [JsonProperty("last_saved")]

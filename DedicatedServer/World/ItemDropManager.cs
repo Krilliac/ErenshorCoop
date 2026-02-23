@@ -19,6 +19,11 @@ namespace ErenshorDedicatedServer.World
         private readonly NetworkManager _network;
         private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, DroppedItem>> _droppedItems = new();
 
+        /// <summary>
+        /// Called when an item drop is recorded, allowing the persistence layer to capture item data.
+        /// </summary>
+        public event Action<string, string, int> OnItemDropRecorded;
+
         public ItemDropManager(NetworkManager network)
         {
             _network = network ?? throw new ArgumentNullException(nameof(network));
@@ -80,6 +85,9 @@ namespace ErenshorDedicatedServer.World
                     };
 
                     ServerLogger.Debug($"Item dropped: {itemId} q{quality} in {zone} by [{session.PlayerId}]", "ITEM");
+
+                    // Notify persistence layer for item recording
+                    OnItemDropRecorded?.Invoke(itemId, zone, quality);
                 }
 
                 if (dataTypes.Contains(ItemDropType.DESTROY))

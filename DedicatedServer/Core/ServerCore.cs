@@ -89,6 +89,13 @@ namespace ErenshorDedicatedServer.Core
                 Network.OnPlayerConnected += OnPlayerConnected;
                 Network.OnPlayerDisconnected += OnPlayerDisconnected;
 
+                // Wire item drop recording
+                ItemDropManager.OnItemDropRecorded += (itemId, zone, quality) =>
+                    Persistence?.DataRecorder.RecordDroppedItem(itemId, zone, quality);
+
+                // Wire zone population: when a new zone owner is established and server has spawn data
+                WorldManager.OnPlayerZoneChanged += OnPlayerZoneChangedForSpawns;
+
                 // Load persistent data before accepting connections
                 Persistence.LoadAll(WorldManager, SpawnManager);
 
@@ -264,6 +271,41 @@ namespace ErenshorDedicatedServer.Core
             catch (Exception ex)
             {
                 ServerLogger.Error($"Error handling disconnect for [{session.PlayerId}]: {ex.Message}", "CORE");
+            }
+        }
+
+        // ====================================================
+        // SERVER-AUTHORITATIVE ZONE POPULATION
+        // ====================================================
+
+        /// <summary>
+        /// When a player enters a zone and becomes zone owner, check if the server
+        /// should proactively send spawn commands based on its spawn definitions.
+        /// </summary>
+        private void OnPlayerZoneChangedForSpawns(PlayerSession session, string newZone, string prevZone)
+        {
+            if (session == null || string.IsNullOrEmpty(newZone)) return;
+
+            // Only populate if this player is the zone owner
+            if (!WorldManager.IsZoneOwner(session.PlayerId, newZone)) return;
+
+            // Check if zone is already populated (another player was here)
+            var zones = WorldManager.Zones;
+            if (zones.TryGetValue(newZone, out var zoneState) && zoneState.IsServerPopulated)
+                return;
+
+            // Check if we have spawn definitions for this zone
+            if (!SpawnManager.HasSpawnDefinitions(newZone)) return;
+
+            // Clear any stale respawn queue entries
+            SpawnManager.ClearZoneRespawns(newZone);
+
+            // Populate the zone with authoritative spawn data
+            var count = SpawnManager.PopulateZone(newZone, session.PlayerId);
+
+            if (count > 0 && zoneState != null)
+            {
+                zoneState.IsServerPopulated = true;
             }
         }
 

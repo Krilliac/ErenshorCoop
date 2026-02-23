@@ -196,23 +196,101 @@ namespace ErenshorDedicatedServer.World
         }
 
         /// <summary>
-        /// Clears spawn points and respawn queue for a zone.
-        /// Called when a zone becomes empty and entities are cleaned up.
+        /// Clears respawn queue for a zone. Spawn point definitions are preserved
+        /// since they represent authoritative data (from files or recorded from clients).
+        /// Only the pending respawn timers are cleared.
         /// </summary>
-        public void ClearZone(string zone)
+        public void ClearZoneRespawns(string zone)
+        {
+            lock (_queueLock)
+            {
+                _respawnQueue.RemoveAll(r => r.Zone == zone);
+            }
+
+            // Reset entity tracking on spawn points (entities cleared, but defs stay)
+            foreach (var sp in _spawnPoints.Values.Where(sp => sp.Zone == zone))
+            {
+                sp.CurrentEntityId = -1;
+            }
+
+            ServerLogger.Debug($"Cleared respawn queue for zone {zone} ({GetZoneSpawnPointCount(zone)} spawn points preserved)", "SPAWN");
+        }
+
+        /// <summary>
+        /// Fully removes spawn point definitions for a zone. Use only for admin reset.
+        /// </summary>
+        public void PurgeZoneDefinitions(string zone)
         {
             var toRemove = _spawnPoints.Values.Where(sp => sp.Zone == zone).Select(sp => sp.SpawnerId).ToList();
             foreach (var id in toRemove)
-            {
                 _spawnPoints.TryRemove(id, out _);
-            }
 
             lock (_queueLock)
             {
                 _respawnQueue.RemoveAll(r => r.Zone == zone);
             }
 
-            ServerLogger.Debug($"Cleared spawn data for zone {zone}", "SPAWN");
+            ServerLogger.Info($"Purged all spawn definitions for zone {zone}", "SPAWN");
+        }
+
+        /// <summary>
+        /// Server-authoritative zone population. Sends spawn commands for all known
+        /// spawn points in a zone to the zone owner. Called when the first player
+        /// enters a zone and the server has spawn definitions.
+        /// </summary>
+        public int PopulateZone(string zone, short zoneOwnerId)
+        {
+            var ownerSession = _network.GetSession(zoneOwnerId);
+            if (ownerSession == null) return 0;
+
+            var zoneSpawns = _spawnPoints.Values.Where(sp => sp.Zone == zone && sp.IsActive).ToList();
+            if (zoneSpawns.Count == 0) return 0;
+
+            int populated = 0;
+            foreach (var sp in zoneSpawns)
+            {
+                var entityId = _world.AllocateEntityId();
+                if (entityId < 0)
+                {
+                    ServerLogger.Warning("Entity ID space exhausted during zone population", "SPAWN");
+                    break;
+                }
+
+                // Send spawn command to zone owner
+                SendRespawnCommand(ownerSession, new RespawnEntry
+                {
+                    SpawnerId = sp.SpawnerId,
+                    Zone = zone,
+                    SpawnPoint = sp
+                }, entityId);
+
+                // Register the entity server-side
+                _world.RegisterEntity(zone, entityId, sp.NpcId, sp.SpawnerId,
+                    sp.IsRare, sp.Position, sp.Rotation, sp.EntityType, sp.MaxHP);
+
+                sp.CurrentEntityId = entityId;
+                sp.LastSpawnTime = DateTime.UtcNow;
+                populated++;
+            }
+
+            ServerLogger.Info($"Server-populated zone {zone}: {populated}/{zoneSpawns.Count} entities spawned for [{zoneOwnerId}]", "SPAWN");
+            return populated;
+        }
+
+        /// <summary>
+        /// Gets spawn point count for a specific zone.
+        /// </summary>
+        public int GetZoneSpawnPointCount(string zone)
+        {
+            return _spawnPoints.Values.Count(sp => sp.Zone == zone);
+        }
+
+        /// <summary>
+        /// Whether the server has authoritative spawn definitions for a zone.
+        /// </summary>
+        public bool HasSpawnDefinitions(string zone)
+        {
+            return _spawnPoints.Values.Any(sp => sp.Zone == zone);
         }
 
         /// <summary>

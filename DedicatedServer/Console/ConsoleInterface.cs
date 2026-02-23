@@ -190,7 +190,7 @@ namespace ErenshorDedicatedServer.Console
             {
                 var recStatus = _server.Config.DataRecordingComplete ? "Complete" :
                     (recorder.IsRecording ? (recorder.IsFullGrab ? "Full Grab" : "Auto-Record") : "Inactive");
-                WriteLine($"  Recording:       {recStatus} ({recorder.TotalRecordedSpawns} spawns, {recorder.TotalRecordedNpcs} NPCs)");
+                WriteLine($"  Recording:       {recStatus} ({recorder.TotalRecordedSpawns} spawns, {recorder.TotalRecordedNpcs} NPCs, {recorder.TotalRecordedItems} items)");
             }
         }
 
@@ -550,6 +550,7 @@ namespace ErenshorDedicatedServer.Console
                 WriteLine($"  Complete:      {_server.Config.DataRecordingComplete}");
                 WriteLine($"  Spawns:        {recorder.TotalRecordedSpawns} recorded");
                 WriteLine($"  NPCs:          {recorder.TotalRecordedNpcs} recorded");
+                WriteLine($"  Items:         {recorder.TotalRecordedItems} recorded");
                 WriteLine($"  Zones:         {recorder.ZonesRecorded}/{_server.Config.Zones.Count} recorded");
                 if (_server.Config.RecordedZones.Count > 0)
                 {

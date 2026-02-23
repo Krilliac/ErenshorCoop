@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using ErenshorDedicatedServer.Core;
 using ErenshorDedicatedServer.Data;
 using ErenshorDedicatedServer.World;
@@ -229,6 +230,10 @@ namespace ErenshorDedicatedServer.Network
                         };
                         session.Gear.Add(entry);
                     }
+                }
+                    // Record gear items for item definition building
+                    _server.Persistence?.DataRecorder.RecordGearItems(
+                        session.Gear.Select(g => (g.SlotType, g.ItemId, g.Quality)));
                 }
                 catch (Exception ex)
                 {
