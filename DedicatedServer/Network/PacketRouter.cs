@@ -155,6 +155,9 @@ namespace ErenshorDedicatedServer.Network
 
                 ServerLogger.Info($"Player identified: [{session.PlayerId}] {session.CharacterName} (Steam: {session.SteamId}){(session.IsModerator ? " [MOD]" : "")}{(session.IsAdmin ? " [ADMIN]" : "")}", "AUTH");
 
+                // Load player's saved data
+                _server.Persistence?.OnPlayerAuthenticated(session);
+
                 // MOTD
                 if (!string.IsNullOrWhiteSpace(_server.Config.MessageOfTheDay))
                 {
@@ -252,6 +255,9 @@ namespace ErenshorDedicatedServer.Network
                 // Zone change: transition to Loading then back to InGame
                 _server.SessionStateMachine?.TryTransition(session.PlayerId, ConnectionPhase.Loading);
                 _server.SessionStateMachine?.TryTransition(session.PlayerId, ConnectionPhase.InGame);
+
+                // Save player on zone change
+                _server.Persistence?.SavePlayer(session);
             }
             if (dataTypes.Contains(PlayerDataType.PERIODIC_UPDATE))
             {

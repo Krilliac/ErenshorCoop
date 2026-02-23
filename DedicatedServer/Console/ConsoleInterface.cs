@@ -45,8 +45,10 @@ namespace ErenshorDedicatedServer.Console
             Cmd("setmod", "Add a moderator by SteamID", CmdSetMod, "<steamid>");
             Cmd("removemod", "Remove a moderator by SteamID", CmdRemoveMod, "<steamid>");
             Cmd("config", "View/modify server config", CmdConfig, "[key] [value]");
-            Cmd("save", "Save server configuration", CmdSave);
+            Cmd("save", "Save all data (players, world, config)", CmdSave);
             Cmd("reload", "Reload server configuration", CmdReload);
+            Cmd("saveworld", "Save world state to disk", CmdSaveWorld);
+            Cmd("saveplayers", "Save all connected players", CmdSavePlayers);
             Cmd("loglevel", "Set console log level", CmdLogLevel, "<debug|info|warning|error>");
             Cmd("entities", "Show entity count per zone", CmdEntities);
             Cmd("groups", "Show active groups", CmdGroups);
@@ -173,6 +175,15 @@ namespace ErenshorDedicatedServer.Console
             WriteLine($"  Cooldowns:       {_server.CooldownManager.GetTrackedEntityCount()} entities");
             var combatStats = _server.CombatManager;
             WriteLine($"  Combat:          {combatStats.TotalKills} kills, {combatStats.TotalDamageDealt:N0} dmg, {combatStats.TotalHealingDone:N0} heals");
+            WriteHeader("Persistence");
+            var savedPlayers = _server.Persistence?.PlayerPersistence.GetAllSavedPlayers()?.Count ?? 0;
+            var autoSaves = _server.Persistence?.GetAutoSaveCount() ?? 0;
+            var hasWorldSave = _server.Persistence?.WorldPersistence.HasSaveData() ?? false;
+            var spawnDefs = _server.Persistence?.SpawnLoader.HasLoadedData ?? false;
+            WriteLine($"  Player Saves:    {savedPlayers} characters on disk");
+            WriteLine($"  Auto-saves:      {autoSaves} (every {_server.Config.AutoSaveIntervalSeconds}s)");
+            WriteLine($"  World State:     {(hasWorldSave ? "Saved" : "None")}");
+            WriteLine($"  Spawn Defs:      {(spawnDefs ? "Loaded from file" : "Client-reported")}");
         }
 
         private void CmdPlayers(string[] args)
@@ -455,8 +466,22 @@ namespace ErenshorDedicatedServer.Console
 
         private void CmdSave(string[] args)
         {
+            _server.Persistence?.SaveAll(_server.WorldManager, _server.SpawnManager, _server.Network);
             _server.Config.Save();
-            WriteInfo("Configuration saved.");
+            WriteInfo("All data saved (players, world state, config).");
+        }
+
+        private void CmdSaveWorld(string[] args)
+        {
+            _server.Persistence?.WorldPersistence.SaveWorldState(_server.WorldManager, _server.SpawnManager);
+            WriteInfo("World state saved.");
+        }
+
+        private void CmdSavePlayers(string[] args)
+        {
+            var sessions = _server.Network.GetAllSessions();
+            var count = _server.Persistence?.PlayerPersistence.SaveAllPlayers(sessions) ?? 0;
+            WriteInfo($"Saved {count} player(s).");
         }
 
         private void CmdReload(string[] args)

@@ -5,6 +5,7 @@ using ErenshorDedicatedServer.Chat;
 using ErenshorDedicatedServer.Configuration;
 using ErenshorDedicatedServer.Data;
 using ErenshorDedicatedServer.Network;
+using ErenshorDedicatedServer.Persistence;
 using ErenshorDedicatedServer.World;
 using LiteNetLib;
 using LiteNetLib.Utils;
@@ -37,6 +38,7 @@ namespace ErenshorDedicatedServer.Core
         public MovementGenerator MovementGenerator { get; private set; }
         public UpdateFieldTracker UpdateFieldTracker { get; private set; }
         public SessionStateMachine SessionStateMachine { get; private set; }
+        public PersistenceManager Persistence { get; private set; }
 
         // Server state
         public DateTime StartTime { get; private set; }
@@ -77,6 +79,7 @@ namespace ErenshorDedicatedServer.Core
                 MovementGenerator = new MovementGenerator(WorldManager);
                 UpdateFieldTracker = new UpdateFieldTracker();
                 SessionStateMachine = new SessionStateMachine();
+                Persistence = new PersistenceManager(Config);
 
                 // Initialize packet router (needs reference to this for all subsystems)
                 PacketRouter = new PacketRouter(Network, this);
@@ -85,6 +88,9 @@ namespace ErenshorDedicatedServer.Core
                 Network.OnPacketReceived += PacketRouter.HandlePacket;
                 Network.OnPlayerConnected += OnPlayerConnected;
                 Network.OnPlayerDisconnected += OnPlayerDisconnected;
+
+                // Load persistent data before accepting connections
+                Persistence.LoadAll(WorldManager, SpawnManager);
 
                 // Start networking
                 if (!Network.Start())
@@ -115,6 +121,9 @@ namespace ErenshorDedicatedServer.Core
             {
                 // Notify all players
                 ChatManager?.BroadcastInfoMessage("[Server] Server is shutting down...");
+
+                // Save all persistent data
+                Persistence?.SaveAll(WorldManager, SpawnManager, Network);
 
                 // Save config
                 Config?.Save();
@@ -157,6 +166,9 @@ namespace ErenshorDedicatedServer.Core
 
                 // Update item drops
                 ItemDropManager.Tick(deltaTime);
+
+                // Auto-save
+                Persistence.Tick(deltaTime, WorldManager, SpawnManager, Network);
 
                 // Periodic player list broadcast (every 10 seconds)
                 if ((DateTime.UtcNow - _lastPlayerListBroadcast).TotalSeconds >= 10)
@@ -229,6 +241,9 @@ namespace ErenshorDedicatedServer.Core
 
                 // Clean up world
                 WorldManager.OnPlayerDisconnect(session);
+
+                // Save player data before cleanup
+                Persistence?.SavePlayer(session);
 
                 // Clean up new subsystems
                 ThreatManager.RemoveSource(session.PlayerId);

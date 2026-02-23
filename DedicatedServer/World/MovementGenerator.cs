@@ -119,14 +119,14 @@ namespace ErenshorDedicatedServer.World
             var entity = _world.GetEntity(entityId);
             if (entity == null) return targetPosition;
 
-            var direction = Vec3.Normalize(Vec3.Subtract(targetPosition, entity.Position));
+            var direction = (targetPosition - entity.Position).Normalized;
             var moveDistance = speed * deltaTime;
             var distToTarget = Vec3.Distance(entity.Position, targetPosition);
 
             if (moveDistance >= distToTarget)
                 return targetPosition;
 
-            return Vec3.Add(entity.Position, Vec3.Scale(direction, moveDistance));
+            return entity.Position + direction * moveDistance;
         }
 
         /// <summary>

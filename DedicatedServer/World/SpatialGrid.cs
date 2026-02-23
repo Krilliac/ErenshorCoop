@@ -128,7 +128,7 @@ namespace ErenshorDedicatedServer.World
                             if (zone != null && entry.Zone != zone)
                                 continue;
 
-                            var distSq = Vec3.DistanceSquared(position, entry.Position);
+                            var distSq = Vec3.DistanceSqr(position, entry.Position);
                             if (distSq <= radiusSq)
                                 result.Add(entry.EntityId);
                         }
