@@ -123,7 +123,8 @@ namespace ErenshorCoop.Client
 					if (NPCTable.LiveNPCs.Contains(spawnedNPC))
 						NPCTable.LiveNPCs.Remove(spawnedNPC);
 
-					//FIXME: it hasn't even been that long and i already forgot why i put this here
+					// During non-takeover cleanup, skip destroying NPCs already managed by the network layer.
+					// Only clear the spawn point reference so the spawner doesn't track them anymore.
 					if (!isTakeOver && spawnedNPC.GetComponent<NetworkedNPC>() != null)
 					{
 						spawn.SpawnedNPC = null;
@@ -531,7 +532,7 @@ namespace ErenshorCoop.Client
 				return;
 			}
 
-			//TODO: Make better
+			// Apply transform updates to the appropriate networked entity (mob or sim)
 			if (packet is EntityTransformPacket entityTransformPacket)
 			{
 				

@@ -7,6 +7,32 @@ namespace ErenshorCoop.Client
 {
 	public static class WeatherHandler
 	{
+		// Fog parameters for each time-of-day period
+		private struct FogSettings
+		{
+			public float NearDist;
+			public float FarDist;
+			public float Density;
+
+			public FogSettings(float near, float far, float density)
+			{
+				NearDist = near;
+				FarDist = far;
+				Density = density;
+			}
+		}
+
+		private static readonly FogSettings FogDawn      = new(75f, 800f, 0.008f);
+		private static readonly FogSettings FogMorning   = new(75f, 1000f, 0.003f);
+		private static readonly FogSettings FogAfternoon = new(75f, 3500f, 0.002f);
+		private static readonly FogSettings FogEvening   = new(75f, 1500f, 0.004f);
+		private static readonly FogSettings FogDusk      = new(75f, 800f, 0.008f);
+		private static readonly FogSettings FogNight     = new(75f, 2800f, 0.003f);
+
+		private const float MinFogNear = 35f;
+		private const float RainFogNear = 25f;
+		private const float RainFogFarMax = 800f;
+
 		private static WeatherData lastData = new();
 		private static Coroutine _cr;
 		public static void Init()
@@ -150,45 +176,35 @@ namespace ErenshorCoop.Client
 				__instance.CallColor = __instance.Dawn;
 				__instance.SunCallColor = __instance.SunDawn;
 				__instance.SkyCallColor = __instance.SkyDawn;
-				fogNearDist = 75f;
-				fogFarDist = 800f;
-				fogDensity = 0.008f;
+				ApplyFog(FogDawn);
 			}
 			if (GameData.Time.GetHour() == 6 && __instance.CallColor != __instance.Morning)
 			{
 				__instance.CallColor = __instance.Morning;
 				__instance.SunCallColor = __instance.SunMorning;
 				__instance.SkyCallColor = __instance.SkyMorning;
-				fogNearDist = 75f;
-				fogFarDist = 1000f;
-				fogDensity = 0.003f;
+				ApplyFog(FogMorning);
 			}
 			if (GameData.Time.GetHour() >= 7 && GameData.Time.GetHour() < 17 && __instance.CallColor != __instance.Afternoon)
 			{
 				__instance.CallColor = __instance.Afternoon;
 				__instance.SunCallColor = __instance.SunDay;
 				__instance.SkyCallColor = __instance.SkyDay;
-				fogNearDist = 75f;
-				fogFarDist = 3500f;
-				fogDensity = 0.002f;
+				ApplyFog(FogAfternoon);
 			}
 			if (GameData.Time.GetHour() == 17 && GameData.Time.GetHour() < 20 && __instance.CallColor != __instance.Evening)
 			{
 				__instance.CallColor = __instance.Evening;
 				__instance.SunCallColor = __instance.SunEvening;
 				__instance.SkyCallColor = __instance.SkyEvening;
-				fogNearDist = 75f;
-				fogFarDist = 1500f;
-				fogDensity = 0.004f;
+				ApplyFog(FogEvening);
 			}
 			if (GameData.Time.GetHour() == 20 && GameData.Time.GetHour() < 22 && __instance.CallColor != __instance.Dusk)
 			{
 				__instance.CallColor = __instance.Dusk;
 				__instance.SunCallColor = __instance.SunDusk;
 				__instance.SkyCallColor = __instance.SkyDusk;
-				fogNearDist = 75f;
-				fogFarDist = 800f;
-				fogDensity = 0.008f;
+				ApplyFog(FogDusk);
 			}
 			if (GameData.Time.GetHour() >= 22 && __instance.CallColor != __instance.Night)
 			{
@@ -197,9 +213,7 @@ namespace ErenshorCoop.Client
 				__instance.CallColor = __instance.Night;
 				__instance.SunCallColor = __instance.SunNight;
 				__instance.SkyCallColor = __instance.SkyNight;
-				fogNearDist = 75f;
-				fogFarDist = 2800f;
-				fogDensity = 0.003f;
+				ApplyFog(FogNight);
 			}
 
 			__instance.LiveColor = new Color(__instance.RainColor.r * __instance.ColorWeight, __instance.RainColor.g * __instance.ColorWeight, __instance.RainColor.b * __instance.ColorWeight);
@@ -211,7 +225,7 @@ namespace ErenshorCoop.Client
 				fogFar = fogFarDist / (__instance.WeightGoal * 15f);
 				fogNear = fogNearDist / (__instance.WeightGoal * 30f);
 				if (fogNear < 35f)
-					fogNear = 35f;
+					fogNear = MinFogNear;
 				if (fogNear > fogFar)
 					fogNear -= 60f * Time.deltaTime;
 			}
@@ -221,8 +235,8 @@ namespace ErenshorCoop.Client
 			}
 			if (__instance.isRaining)
 			{
-				fogNear = 25f;
-				if ( fogFar > 800f)
+				fogNear = RainFogNear;
+				if ( fogFar > RainFogFarMax)
 					fogFar -= 60f * Time.deltaTime;
 			}
 
@@ -325,6 +339,13 @@ namespace ErenshorCoop.Client
 		}
 
 
+		private static void ApplyFog(FogSettings settings)
+		{
+			fogNearDist = settings.NearDist;
+			fogFarDist = settings.FarDist;
+			fogDensity = settings.Density;
+		}
+
 		public static void SetAtmosphere(WeatherData data)
 		{
 			GameData.Atmos.SinceRain = data.sinceRain;
@@ -344,45 +365,35 @@ namespace ErenshorCoop.Client
 				GameData.Atmos.CallColor = GameData.Atmos.Dawn;
 				GameData.Atmos.SunCallColor = GameData.Atmos.SunDawn;
 				GameData.Atmos.SkyCallColor = GameData.Atmos.SkyDawn;
-				fogNearDist = 75f;
-				fogFarDist = 800f;
-				fogDensity = 0.008f;
+				ApplyFog(FogDawn);
 			}
 			if (GameData.Time.GetHour() == 6)
 			{
 				GameData.Atmos.CallColor = GameData.Atmos.Morning;
 				GameData.Atmos.SunCallColor = GameData.Atmos.SunMorning;
 				GameData.Atmos.SkyCallColor = GameData.Atmos.SkyMorning;
-				fogNearDist = 75f;
-				fogFarDist = 1000f;
-				fogDensity = 0.003f;
+				ApplyFog(FogMorning);
 			}
 			if (GameData.Time.GetHour() >= 7 && GameData.Time.GetHour() < 17)
 			{
 				GameData.Atmos.CallColor = GameData.Atmos.Afternoon;
 				GameData.Atmos.SunCallColor = GameData.Atmos.SunDay;
 				GameData.Atmos.SkyCallColor = GameData.Atmos.SkyDay;
-				fogNearDist = 75f;
-				fogFarDist = 3500f;
-				fogDensity = 0.002f;
+				ApplyFog(FogAfternoon);
 			}
 			if (GameData.Time.GetHour() == 17 && GameData.Time.GetHour() < 20)
 			{
 				GameData.Atmos.CallColor = GameData.Atmos.Evening;
 				GameData.Atmos.SunCallColor = GameData.Atmos.SunEvening;
 				GameData.Atmos.SkyCallColor = GameData.Atmos.SkyEvening;
-				fogNearDist = 75f;
-				fogFarDist = 1500f;
-				fogDensity = 0.004f;
+				ApplyFog(FogEvening);
 			}
 			if (GameData.Time.GetHour() == 20 && GameData.Time.GetHour() < 22)
 			{
 				GameData.Atmos.CallColor = GameData.Atmos.Dusk;
 				GameData.Atmos.SunCallColor = GameData.Atmos.SunDusk;
 				GameData.Atmos.SkyCallColor = GameData.Atmos.SkyDusk;
-				fogNearDist = 75f;
-				fogFarDist = 800f;
-				fogDensity = 0.008f;
+				ApplyFog(FogDusk);
 			}
 			if (GameData.Time.GetHour() >= 22)
 			{
@@ -391,9 +402,7 @@ namespace ErenshorCoop.Client
 				GameData.Atmos.CallColor = GameData.Atmos.Night;
 				GameData.Atmos.SunCallColor = GameData.Atmos.SunNight;
 				GameData.Atmos.SkyCallColor = GameData.Atmos.SkyNight;
-				fogNearDist = 75f;
-				fogFarDist = 2800f;
-				fogDensity = 0.003f;
+				ApplyFog(FogNight);
 			}
 
 			GameData.Atmos.LiveColor = new Color(GameData.Atmos.RainColor.r * data.colorWeight, GameData.Atmos.RainColor.g * data.colorWeight, GameData.Atmos.RainColor.b * data.colorWeight);
@@ -404,8 +413,8 @@ namespace ErenshorCoop.Client
 			{
 				fogFar = fogFarDist / (data.weightGoal * 15f);
 				fogNear = fogNearDist / (data.weightGoal * 30f);
-				if (fogNear < 35f)
-					fogNear = 35f;
+				if (fogNear < MinFogNear)
+					fogNear = MinFogNear;
 				if (fogNear > fogFar)
 					fogNear = fogFar;
 			}
@@ -415,9 +424,9 @@ namespace ErenshorCoop.Client
 			}
 			if (data.raining)
 			{
-				fogNear = 25f;
-				if (fogFar > 800f)
-					fogFar = 800f;
+				fogNear = RainFogNear;
+				if (fogFar > RainFogFarMax)
+					fogFar = RainFogFarMax;
 			}
 
 			GameData.Atmos.ColorWeight = data.weightGoal;

@@ -29,7 +29,7 @@ namespace ErenshorCoop.Shared
 		private string curZone = "";
 		
 
-		//TODO: Do this properly
+		// High watermark for entity ID assignment. Only increases; never reuses IDs.
 		public short serverLastId = -1;
 
 		public void Awake()
@@ -419,25 +419,26 @@ namespace ErenshorCoop.Shared
 
 		public short GetFreeId()
 		{
-			//serverLastId = -1;
-			foreach(var f in mobs)
-				if(f.Key >  serverLastId)
-					serverLastId = f.Key;
-			foreach (var f in sims)
-				if (f.Key > serverLastId)
-					serverLastId = f.Key;
-			foreach (var f in ClientNPCSyncManager.Instance.NetworkedMobs)
-				if (f.Key > serverLastId)
-					serverLastId = f.Key;
-			foreach (var f in ClientNPCSyncManager.Instance.NetworkedSims)
-				if (f.Key > serverLastId)
-					serverLastId = f.Key;
-			foreach (var f in ClientConnectionManager.Instance.Players)
-				if (f.Key > serverLastId)
-					serverLastId = f.Key;
-
-			if (serverLastId == -1)
-				serverLastId++;
+			// On first call or after reset, scan all collections to find the current max ID
+			if (serverLastId < 0)
+			{
+				serverLastId = 0;
+				foreach (var f in mobs)
+					if (f.Key > serverLastId)
+						serverLastId = f.Key;
+				foreach (var f in sims)
+					if (f.Key > serverLastId)
+						serverLastId = f.Key;
+				foreach (var f in ClientNPCSyncManager.Instance.NetworkedMobs)
+					if (f.Key > serverLastId)
+						serverLastId = f.Key;
+				foreach (var f in ClientNPCSyncManager.Instance.NetworkedSims)
+					if (f.Key > serverLastId)
+						serverLastId = f.Key;
+				foreach (var f in ClientConnectionManager.Instance.Players)
+					if (f.Key > serverLastId)
+						serverLastId = f.Key;
+			}
 
 			return ++serverLastId;
 		}

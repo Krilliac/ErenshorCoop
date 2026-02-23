@@ -253,7 +253,7 @@ namespace ErenshorCoop.Server
 			if (zoneEntities.TryGetValue(packet.zone, out var _zoneEnts))
 				zoneEnts = _zoneEnts;
 
-			//TODO: Make better
+			// Update cached spawn data with latest transform so zone takeover preserves positions
 			if (packet is EntityTransformPacket entityTransformPacket)
 			{
 				if (zoneEnts.ContainsKey(entityTransformPacket.entityID))

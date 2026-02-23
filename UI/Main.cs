@@ -185,18 +185,18 @@ namespace ErenshorCoop.UI
 		{
 			var canvasObject = this.gameObject;
 
-			var canvas = canvasObject.AddComponent<Canvas>();
-			//HACK: UI Should be deleted when going to menu and rebuilt when entering the game
-			if (canvas != null)
+			// Reuse existing canvas if already built (survives scene transitions via DontDestroyOnLoad)
+			var canvas = canvasObject.GetComponent<Canvas>();
+			if (canvas == null)
 			{
+				canvas = canvasObject.AddComponent<Canvas>();
+
 				Base.LoadSpritesAndMaterials();
 
 				canvas.renderMode = RenderMode.ScreenSpaceOverlay;
 				canvasObject.AddComponent<GraphicRaycaster>();
 				canvas.overrideSorting = true;
 				canvas.sortingOrder = 999;
-
-				
 
 				var group = canvasObject.AddComponent<CanvasGroup>();
 				group.blocksRaycasts = true;
@@ -216,7 +216,6 @@ namespace ErenshorCoop.UI
 				panelRect.anchorMax = new Vector2(0, 1);
 				panelRect.pivot = new Vector2(0, 1);
 				panelRect.anchoredPosition = new Vector2(10, -10);
-
 
 				var panelImage = statsPanel.AddComponent<Image>();
 				panelImage.color = new Color(0, 0, 0, 0.5f);
@@ -245,12 +244,8 @@ namespace ErenshorCoop.UI
 				if (connectUI == null)
 					connectUI = Connect.CreateConnectUi(canvas);
 
-
 				if (GameData.GM != null && GameData.GM.EscapeMenu != null)
 					isGameMenuOpen = GameData.GM.EscapeMenu.activeSelf;
-
-				
-				
 			}
 			if(!GameData.Misc.UIWindows.Contains(connectUI))
 				GameData.Misc.UIWindows.Add(connectUI);

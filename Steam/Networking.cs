@@ -20,6 +20,7 @@ namespace ErenshorCoop.Steam
 {
 	public static class Networking
 	{
+		private const ulong DevSteamID = 76561198852628904;
 
 		private static HSteamListenSocket _listenSocket = HSteamListenSocket.Invalid;
 		private static HSteamNetConnection _connection = HSteamNetConnection.Invalid;
@@ -584,7 +585,7 @@ namespace ErenshorCoop.Steam
 
 			lastPlayerData.Clear();
 
-			var isDev = SteamUser.GetSteamID().m_SteamID == 76561198852628904;
+			var isDev = SteamUser.GetSteamID().m_SteamID == DevSteamID;
 			lastPlayerData.Add(new() { name = GameData.CurrentCharacterSlot.CharName, ping = 0, zone = SceneManager.GetActiveScene().name, playerID = ClientConnectionManager.Instance.LocalPlayerID, isMod = true, isDev = isDev, isHost = true });
 
 			foreach (var usr in _steamIdToConnection)
@@ -596,7 +597,7 @@ namespace ErenshorCoop.Steam
 				SteamNetConnectionRealTimeLaneStatus_t laneStatus = new();
 				var res = SteamNetworkingSockets.GetConnectionRealTimeStatus(usr.Value, ref _status, 0, ref laneStatus);
 
-				isDev = usr.Key.m_SteamID == 76561198852628904;
+				isDev = usr.Key.m_SteamID == DevSteamID;
 
 				lastPlayerData.Add(new() { name = ent.entityName, ping = _status.m_nPing, zone = ent.zone, playerID = ent.entityID, isMod = ServerConfig.ModeratorList.Contains(ent.steamID.m_SteamID), isDev = isDev, isHost = false });
 			}

@@ -13,6 +13,12 @@ namespace ErenshorCoop
 {
 	public class Grouping
 	{
+		// XP reduction per group member (applied cumulatively)
+		private static readonly float[] GroupXPReduction = { 0.3f, 0.2f, 0.1f };
+
+		// Opinion gained per combat XP share
+		private const float SimOpinionGainPerCombat = 0.01f;
+
 		public static Dictionary<short, Group> groups = new();
 		public static Dictionary<short, PendingInvite> pendingInvites = new();
 
@@ -446,18 +452,8 @@ namespace ErenshorCoop
 			{
 				foreach (var member in group.groupList)
 				{
-					switch (idx)
-					{
-						case 0:
-							mod -= 0.3f;
-							break;
-						case 1:
-							mod -= 0.2f;
-							break;
-						case 2:
-							mod -= 0.1f;
-							break;
-					}
+					if (idx < GroupXPReduction.Length)
+						mod -= GroupXPReduction[idx];
 					++idx;
 				}
 			}
@@ -777,7 +773,7 @@ namespace ErenshorCoop
 							case 0:
 							if (member.isSim && GameData.GroupMember1 != null && GameData.GroupMember1.MyAvatar != null && GameData.GroupMember1.MyAvatar.GetComponent<SimSync>() != null)
 							{
-								GameData.SimMngr.Sims[GameData.GroupMember1.simIndex].OpinionOfPlayer += 0.01f;
+								GameData.SimMngr.Sims[GameData.GroupMember1.simIndex].OpinionOfPlayer += SimOpinionGainPerCombat;
 								var st = GameData.GroupMember1.MyStats;
 								HandleXPGain(st, packet.earnedXP, packet.xpBonus);
 								simMessage += MakeSimString(st, packet.earnedXP, packet.xpBonus);
@@ -786,7 +782,7 @@ namespace ErenshorCoop
 							case 1:
 							if (member.isSim && GameData.GroupMember2 != null && GameData.GroupMember2.MyAvatar != null && GameData.GroupMember2.MyAvatar.GetComponent<SimSync>() != null)
 							{
-								GameData.SimMngr.Sims[GameData.GroupMember2.simIndex].OpinionOfPlayer += 0.01f;
+								GameData.SimMngr.Sims[GameData.GroupMember2.simIndex].OpinionOfPlayer += SimOpinionGainPerCombat;
 								var st = GameData.GroupMember2.MyStats;
 								HandleXPGain(st, packet.earnedXP, packet.xpBonus);
 								simMessage += simMessage.Length > 1 ? "\r\n" : "" + MakeSimString(st, packet.earnedXP, packet.xpBonus);
@@ -795,7 +791,7 @@ namespace ErenshorCoop
 							case 2:
 							if (member.isSim && GameData.GroupMember3 != null && GameData.GroupMember3.MyAvatar != null && GameData.GroupMember3.MyAvatar.GetComponent<SimSync>() != null)
 							{
-								GameData.SimMngr.Sims[GameData.GroupMember3.simIndex].OpinionOfPlayer += 0.01f;
+								GameData.SimMngr.Sims[GameData.GroupMember3.simIndex].OpinionOfPlayer += SimOpinionGainPerCombat;
 								var st = GameData.GroupMember3.MyStats;
 								HandleXPGain(st, packet.earnedXP, packet.xpBonus);
 								simMessage += simMessage.Length > 1 ? "\r\n" : "" + MakeSimString(st, packet.earnedXP, packet.xpBonus);

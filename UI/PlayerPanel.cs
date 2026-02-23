@@ -49,7 +49,7 @@ namespace ErenshorCoop.UI
 		}
 
 		static private Dictionary<string, PlayerInfoObject> playerLabels = new();
-		//FIXME: Needs to be somewhere else, really. Doesn't really matter either way, all the calls are protected host-side
+		// Local moderator state - used for UI display only; all mod commands are validated server-side
 		private static bool areWeMod = false;
 
 		public static void ClearPlayerInfo()

@@ -1130,7 +1130,7 @@ namespace ErenshorCoop.Client
 		}
 
 
-		//FIXME: Make better
+		// Process moderator commands (0=kick, 1=ban). Requires Steam lobby for player lookup.
 		public void HandleModCommand(byte cmdType, string plName)
 		{
 			if (!ServerConnectionManager.Instance.IsRunning) return;

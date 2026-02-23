@@ -12,6 +12,8 @@ namespace ErenshorCoop.Steam
 {
 	public static class Lobby
 	{
+		public const int DefaultPort = 7777;
+
 		private static Callback<LobbyCreated_t> lobbyCreatedCallback;
 		private static Callback<GameLobbyJoinRequested_t> lobbyJoinRequested;
 		private static Callback<LobbyChatMsg_t> lobbyChatMsg;
@@ -221,9 +223,9 @@ namespace ErenshorCoop.Steam
 				isLobbyHost = true;
 				SteamMatchmaking.SetLobbyData(lobbyID, "name", lobbyName);
 				SteamMatchmaking.SetLobbyData(lobbyID, "hasPassword", string.IsNullOrEmpty(lobbyPassword) ? "false" : "true");
-				SteamMatchmaking.SetLobbyData(lobbyID, "port", "7777");
+				SteamMatchmaking.SetLobbyData(lobbyID, "port", DefaultPort.ToString());
 
-				Networking.StartHost(7777);
+				Networking.StartHost(DefaultPort);
 
 				SteamFriends.SetRichPresence("connect", $"+connect_lobby {lobbyID.ToString()}");
 			}
@@ -366,7 +368,7 @@ namespace ErenshorCoop.Steam
 		private static void SuccessJoinLobby()
 		{
 			hostSteamID = SteamMatchmaking.GetLobbyOwner(lobbyID);
-			isInLobby = Networking.ConnectToPeer(hostSteamID, 7777);
+			isInLobby = Networking.ConnectToPeer(hostSteamID, DefaultPort);
 			SteamFriends.SetRichPresence("connect", $"+connect_lobby {lobbyID.ToString()}");
 		}
 

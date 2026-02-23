@@ -29,7 +29,6 @@ namespace ErenshorCoop
 				string[] spl = txt.Substring(1).Split(' ');
 				string command = spl[0].ToLower();
 
-				//FIXME: Improve
 				switch (command)
 				{
 #if DEBUG
@@ -49,45 +48,51 @@ namespace ErenshorCoop
 #endif
 					case "kick":
 					case "ban":
-						if (!ClientConnectionManager.Instance.IsRunning)
-						{
-							return true;//Not connected
-						}
-						if (!Steam.Lobby.isInLobby)
-						{
-							//Only supported on steam
-							Logging.WriteInfoMessage("Moderator commands are only supported using steam lobbies.");
-
-							return false;
-						}
-						if (spl.Length < 2 || spl.Length > 2)
-						{
-							Logging.WriteInfoMessage($"Usage: /{command} <name>");
-							return false;
-						}
-						var pln = spl[1].ToLower();
-						if (pln == GameData.CurrentCharacterSlot.CharName.ToLower())
-						{
-							//cant kick/ban self...
-							Logging.WriteInfoMessage($"Cannot {command} self!");
-							return false;
-						}
-						if(ServerConnectionManager.Instance.IsRunning)
-						{
-							ClientConnectionManager.Instance.HandleModCommand((byte)(command == "kick" ? 0 : 1), pln);
-						}
-						else
-						{
-							//Send packet
-							var pa = PacketManager.GetOrCreatePacket<PlayerRequestPacket>(ClientConnectionManager.Instance.LocalPlayerID, PacketType.PLAYER_REQUEST);
-							pa.dataTypes.Add(Request.MOD_COMMAND);
-							pa.playerName = pln;
-							pa.commandType = (byte)(command == "kick" ? 0 : 1);
-						}
-						return false;
+						return HandleModCommand(command, spl);
 				}
 			}
 			return true;
+		}
+
+		private static bool HandleModCommand(string command, string[] args)
+		{
+			if (!ClientConnectionManager.Instance.IsRunning)
+				return true; // Not connected, let game handle it
+
+			if (!Steam.Lobby.isInLobby)
+			{
+				Logging.WriteInfoMessage("Moderator commands are only supported using steam lobbies.");
+				return false;
+			}
+
+			if (args.Length != 2)
+			{
+				Logging.WriteInfoMessage($"Usage: /{command} <name>");
+				return false;
+			}
+
+			var targetName = args[1].ToLower();
+			if (targetName == GameData.CurrentCharacterSlot.CharName.ToLower())
+			{
+				Logging.WriteInfoMessage($"Cannot {command} self!");
+				return false;
+			}
+
+			byte commandType = (byte)(command == "kick" ? 0 : 1);
+
+			if (ServerConnectionManager.Instance.IsRunning)
+			{
+				ClientConnectionManager.Instance.HandleModCommand(commandType, targetName);
+			}
+			else
+			{
+				var pa = PacketManager.GetOrCreatePacket<PlayerRequestPacket>(ClientConnectionManager.Instance.LocalPlayerID, PacketType.PLAYER_REQUEST);
+				pa.dataTypes.Add(Request.MOD_COMMAND);
+				pa.playerName = targetName;
+				pa.commandType = commandType;
+			}
+
+			return false;
 		}
 	}
 }

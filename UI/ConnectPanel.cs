@@ -139,8 +139,7 @@ namespace ErenshorCoop.UI
 				return;
 			}
 
-			//FIXME: Later use
-			//Steam.Networking.ConnectToPeer(Steamworks.CSteamID.Nil, portNumber, ipString, true);
+			// Direct IP connection (Steam P2P alternative): Steam.Networking.ConnectToPeer(Steamworks.CSteamID.Nil, portNumber, ipString, true);
 			ClientConnectionManager.Instance.Connect(ipString, portNumber);
 			hostButton.gameObject.SetActive(false);
 			connectButton.gameObject.SetActive(false);

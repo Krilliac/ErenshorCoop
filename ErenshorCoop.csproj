@@ -36,6 +36,11 @@
   </PropertyGroup>
   <PropertyGroup>
     <LangVersion>9.0</LangVersion>
+    <!-- Set ErenshorGamePath to your Erenshor installation directory.
+         Can be overridden via: msbuild /p:ErenshorGamePath="D:\Games\Erenshor"
+         or in a Directory.Build.props file. -->
+    <ErenshorGamePath Condition="'$(ErenshorGamePath)' == ''">F:\steam\steamapps\common\Erenshor</ErenshorGamePath>
+    <ErenshorManagedPath>$(ErenshorGamePath)\Erenshor_Data\Managed</ErenshorManagedPath>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="0Harmony">
@@ -43,14 +48,14 @@
     </Reference>
     <Reference Include="Assembly-CSharp, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>F:\steam\steamapps\common\Erenshor\Erenshor_Data\Managed\Assembly-CSharp.dll</HintPath>
+      <HintPath>$(ErenshorManagedPath)\Assembly-CSharp.dll</HintPath>
     </Reference>
     <Reference Include="BepInEx">
       <HintPath>Libraries\BepInEx.dll</HintPath>
     </Reference>
     <Reference Include="com.rlabrecque.steamworks.net, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>F:\steam\steamapps\common\Erenshor\Erenshor_Data\Managed\com.rlabrecque.steamworks.net.dll</HintPath>
+      <HintPath>$(ErenshorManagedPath)\com.rlabrecque.steamworks.net.dll</HintPath>
     </Reference>
     <Reference Include="LiteNetLib">
       <HintPath>Libraries\LiteNetLib.dll</HintPath>
@@ -60,7 +65,7 @@
     </Reference>
     <Reference Include="OccaSoftware.SuperSimpleSkybox.Runtime, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>F:\steam\steamapps\common\Erenshor\Erenshor_Data\Managed\OccaSoftware.SuperSimpleSkybox.Runtime.dll</HintPath>
+      <HintPath>$(ErenshorManagedPath)\OccaSoftware.SuperSimpleSkybox.Runtime.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -83,21 +88,21 @@
       <HintPath>Libraries\UnityEngine.AnimationModule.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine.AudioModule">
-      <HintPath>F:\steam\steamapps\common\Erenshor\Erenshor_Data\Managed\UnityEngine.AudioModule.dll</HintPath>
+      <HintPath>$(ErenshorManagedPath)\UnityEngine.AudioModule.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
       <HintPath>Libraries\UnityEngine.CoreModule.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine.ImageConversionModule, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>F:\steam\steamapps\common\Erenshor\Erenshor_Data\Managed\UnityEngine.ImageConversionModule.dll</HintPath>
+      <HintPath>$(ErenshorManagedPath)\UnityEngine.ImageConversionModule.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine.InputLegacyModule">
       <HintPath>Libraries\UnityEngine.InputLegacyModule.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine.ParticleSystemModule, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>F:\steam\steamapps\common\Erenshor\Erenshor_Data\Managed\UnityEngine.ParticleSystemModule.dll</HintPath>
+      <HintPath>$(ErenshorManagedPath)\UnityEngine.ParticleSystemModule.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine.PhysicsModule">
       <HintPath>Libraries\UnityEngine.PhysicsModule.dll</HintPath>
