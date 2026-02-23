@@ -74,6 +74,9 @@ namespace ErenshorDedicatedServer.Configuration
         [JsonProperty("npc_max_per_zone")]
         public int NpcMaxPerZone { get; set; } = 100;
 
+        [JsonProperty("spatial_grid_cell_size")]
+        public float SpatialGridCellSize { get; set; } = 64f;
+
         // Security
         [JsonProperty("ban_list")]
         public List<ulong> BanList { get; set; } = new List<ulong>();
@@ -203,6 +206,7 @@ namespace ErenshorDedicatedServer.Configuration
             NpcLeashRange = Math.Clamp(NpcLeashRange, 10f, 500f);
             NpcWanderRange = Math.Clamp(NpcWanderRange, 0f, 100f);
             NpcMaxPerZone = Math.Clamp(NpcMaxPerZone, 1, 10000);
+            SpatialGridCellSize = Math.Clamp(SpatialGridCellSize, 8f, 512f);
             MaxPacketsPerSecond = Math.Clamp(MaxPacketsPerSecond, 10, 1000);
             MaxChatMessagesPerSecond = Math.Clamp(MaxChatMessagesPerSecond, 1, 30);
             MaxMovementSpeed = Math.Clamp(MaxMovementSpeed, 5f, 100f);

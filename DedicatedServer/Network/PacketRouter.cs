@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using ErenshorDedicatedServer.Core;
 using ErenshorDedicatedServer.Data;
+using ErenshorDedicatedServer.World;
 using LiteNetLib;
 using LiteNetLib.Utils;
 
@@ -25,6 +26,18 @@ namespace ErenshorDedicatedServer.Network
         public void HandlePacket(PlayerSession session, PacketType type, NetDataReader reader)
         {
             if (session == null || reader == null) return;
+
+            // Session state validation
+            var stateMachine = _server.SessionStateMachine;
+            if (stateMachine != null && !stateMachine.IsPacketAllowed(session.PlayerId, type.ToString()))
+            {
+                // Allow PLAYER_CONNECT during handshake even before full auth
+                if (type != PacketType.PLAYER_CONNECT)
+                {
+                    ServerLogger.Debug($"Packet {type} rejected for [{session.PlayerId}] in phase {stateMachine.GetPhase(session.PlayerId)}", "PKT");
+                    return;
+                }
+            }
 
             try
             {
@@ -136,6 +149,10 @@ namespace ErenshorDedicatedServer.Network
                 session.IsAuthenticated = true;
                 session.HasSentConnect = true;
 
+                // Advance session state
+                _server.SessionStateMachine?.TryTransition(session.PlayerId, ConnectionPhase.Authenticating);
+                _server.SessionStateMachine?.TryTransition(session.PlayerId, ConnectionPhase.Loading);
+
                 ServerLogger.Info($"Player identified: [{session.PlayerId}] {session.CharacterName} (Steam: {session.SteamId}){(session.IsModerator ? " [MOD]" : "")}{(session.IsAdmin ? " [ADMIN]" : "")}", "AUTH");
 
                 // MOTD
@@ -153,6 +170,9 @@ namespace ErenshorDedicatedServer.Network
             {
                 var newZone = PacketHelper.SafeReadString(reader, 64);
                 _server.WorldManager.OnPlayerChangeZone(session, newZone);
+
+                // Player is now in-game
+                _server.SessionStateMachine?.TryTransition(session.PlayerId, ConnectionPhase.InGame);
             }
 
             // Relay connection packet to all other players
@@ -227,6 +247,11 @@ namespace ErenshorDedicatedServer.Network
             {
                 var newZone = PacketHelper.SafeReadString(reader, 64);
                 _server.WorldManager.OnPlayerChangeZone(session, newZone);
+                _server.UpdateFieldTracker?.MarkDirty(session.PlayerId, UpdateFieldTracker.FIELD_ZONE);
+
+                // Zone change: transition to Loading then back to InGame
+                _server.SessionStateMachine?.TryTransition(session.PlayerId, ConnectionPhase.Loading);
+                _server.SessionStateMachine?.TryTransition(session.PlayerId, ConnectionPhase.InGame);
             }
             if (dataTypes.Contains(PlayerDataType.PERIODIC_UPDATE))
             {
@@ -274,6 +299,11 @@ namespace ErenshorDedicatedServer.Network
                 session.Position = pos;
                 session.Rotation = rot;
                 session.LastPositionUpdate = DateTime.UtcNow;
+
+                // Update spatial grid and movement tracking
+                _server.SpatialGrid?.UpdatePosition(session.PlayerId, pos, session.Zone);
+                _server.MovementGenerator?.UpdateMovement(session.PlayerId, pos, World.MovementType.Run);
+                _server.UpdateFieldTracker?.MarkDirty(session.PlayerId, UpdateFieldTracker.FIELD_POSITION);
             }
 
             // Relay transform to zone players
@@ -399,7 +429,19 @@ namespace ErenshorDedicatedServer.Network
             if (dataTypes.Contains(EntityDataType.HEALTH))
             {
                 var health = reader.GetInt();
+                var prevEntity = _server.WorldManager.GetEntity(entityId);
+                var wasAlive = prevEntity?.IsAlive ?? true;
+
                 _server.WorldManager.UpdateEntityHealth(zone, entityId, health);
+                _server.UpdateFieldTracker?.MarkDirty(entityId, UpdateFieldTracker.FIELD_HEALTH);
+
+                // Check for death -> trigger respawn
+                if (wasAlive && health <= 0 && prevEntity != null)
+                {
+                    _server.SpawnManager?.OnEntityDeath(entityId, prevEntity.SpawnerId, zone);
+                    _server.ThreatManager?.RemoveTable(entityId);
+                    _server.CreatureAI?.TrySetState(entityId, NpcState.Dead);
+                }
             }
 
             // Relay to target players
@@ -456,6 +498,12 @@ namespace ErenshorDedicatedServer.Network
                     }
 
                     _server.WorldManager.RegisterEntity(zone, spawnEntityId, npcId, spawnerId, isRare, pos, rot, spawnEntType, maxHP);
+
+                    // Register spawn point for respawn tracking
+                    _server.SpawnManager?.RegisterSpawnPoint(zone, spawnerId, npcId, pos, rot, spawnEntType, isRare, maxHP);
+
+                    // Update spatial grid
+                    _server.SpatialGrid?.UpdatePosition(spawnEntityId, pos, zone);
                 }
                 catch (Exception ex)
                 {
@@ -493,6 +541,10 @@ namespace ErenshorDedicatedServer.Network
 
             // Update server-side entity position
             _server.WorldManager.UpdateEntityPosition(zone, entityId, pos, rot);
+
+            // Update spatial grid and movement tracking for entities
+            _server.SpatialGrid?.UpdatePosition(entityId, pos, zone);
+            _server.MovementGenerator?.UpdateMovement(entityId, pos, MovementType.Run);
 
             // Relay to targets
             RelayEntityTransformToTargets(targets, entityId, zone, dataTypes, entityType, pos, rot);

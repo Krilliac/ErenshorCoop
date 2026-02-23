@@ -26,6 +26,18 @@ namespace ErenshorDedicatedServer.Core
         public WeatherManager WeatherManager { get; private set; }
         public PacketRouter PacketRouter { get; private set; }
 
+        // New subsystems
+        public ThreatManager ThreatManager { get; private set; }
+        public CreatureAI CreatureAI { get; private set; }
+        public SpawnManager SpawnManager { get; private set; }
+        public SpatialGrid SpatialGrid { get; private set; }
+        public CombatManager CombatManager { get; private set; }
+        public CooldownManager CooldownManager { get; private set; }
+        public EventScheduler EventScheduler { get; private set; }
+        public MovementGenerator MovementGenerator { get; private set; }
+        public UpdateFieldTracker UpdateFieldTracker { get; private set; }
+        public SessionStateMachine SessionStateMachine { get; private set; }
+
         // Server state
         public DateTime StartTime { get; private set; }
         public bool IsRunning { get; private set; }
@@ -46,13 +58,27 @@ namespace ErenshorDedicatedServer.Core
         {
             try
             {
-                // Initialize subsystems
+                // Initialize core subsystems
                 Network = new NetworkManager(Config);
                 WorldManager = new WorldManager(Config, Network);
                 ChatManager = new ChatManager(Network, Config);
                 GroupManager = new GroupManager(Network);
                 ItemDropManager = new ItemDropManager(Network);
                 WeatherManager = new WeatherManager(Network);
+
+                // Initialize new subsystems
+                ThreatManager = new ThreatManager();
+                SpatialGrid = new SpatialGrid(Config.SpatialGridCellSize);
+                CreatureAI = new CreatureAI(WorldManager, ThreatManager);
+                SpawnManager = new SpawnManager(WorldManager, Network);
+                CombatManager = new CombatManager(WorldManager, ThreatManager, SpatialGrid);
+                CooldownManager = new CooldownManager();
+                EventScheduler = new EventScheduler();
+                MovementGenerator = new MovementGenerator(WorldManager);
+                UpdateFieldTracker = new UpdateFieldTracker();
+                SessionStateMachine = new SessionStateMachine();
+
+                // Initialize packet router (needs reference to this for all subsystems)
                 PacketRouter = new PacketRouter(Network, this);
 
                 // Wire events
@@ -122,6 +148,13 @@ namespace ErenshorDedicatedServer.Core
                 // Update world state
                 WorldManager.Tick(deltaTime);
 
+                // Update new subsystems
+                ThreatManager.Tick(deltaTime);
+                CreatureAI.Tick(deltaTime);
+                SpawnManager.Tick(deltaTime);
+                CooldownManager.Tick(deltaTime);
+                EventScheduler.Tick(deltaTime);
+
                 // Update item drops
                 ItemDropManager.Tick(deltaTime);
 
@@ -174,6 +207,13 @@ namespace ErenshorDedicatedServer.Core
         private void OnPlayerConnected(PlayerSession session)
         {
             ServerLogger.Info($"Player connected: [{session.PlayerId}] from {session.Peer.Address}", "CORE");
+
+            // Initialize session state machine
+            SessionStateMachine.InitSession(session.PlayerId);
+            SessionStateMachine.TryTransition(session.PlayerId, ConnectionPhase.Handshaking);
+
+            // Register for update tracking
+            UpdateFieldTracker.RegisterReceiver(session.PlayerId);
         }
 
         private void OnPlayerDisconnected(PlayerSession session, DisconnectInfo info)
@@ -189,6 +229,15 @@ namespace ErenshorDedicatedServer.Core
 
                 // Clean up world
                 WorldManager.OnPlayerDisconnect(session);
+
+                // Clean up new subsystems
+                ThreatManager.RemoveSource(session.PlayerId);
+                CooldownManager.ResetCooldowns(session.PlayerId);
+                MovementGenerator.RemoveEntity(session.PlayerId);
+                SpatialGrid.Remove(session.PlayerId);
+                UpdateFieldTracker.UnregisterReceiver(session.PlayerId);
+                SessionStateMachine.RemoveSession(session.PlayerId);
+                EventScheduler.CancelByTag($"player_{session.PlayerId}");
 
                 // Notify other players
                 Network.BroadcastPlayerDisconnect(session.PlayerId);
@@ -357,6 +406,10 @@ namespace ErenshorDedicatedServer.Core
                            $"Entities: {WorldManager.GetTotalEntityCount()} | " +
                            $"Groups: {GroupManager.GetGroupCount()} | " +
                            $"Drops: {ItemDropManager.GetTotalDropCount()} | " +
+                           $"Spawns: {SpawnManager.GetSpawnPointCount()} (pending: {SpawnManager.GetPendingRespawnCount()}) | " +
+                           $"Threat: {ThreatManager.GetTableCount()} | " +
+                           $"Grid: {SpatialGrid.GetEntityCount()}/{SpatialGrid.GetCellCount()} | " +
+                           $"Events: {EventScheduler.GetPendingCount()} | " +
                            $"Avg Tick: {_avgTickTime:F2}ms | " +
                            $"Uptime: {GetUptimeString()}", "STATS");
         }

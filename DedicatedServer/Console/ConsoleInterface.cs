@@ -165,6 +165,14 @@ namespace ErenshorDedicatedServer.Console
             WriteLine($"  Packets Out:     {_server.Network.TotalPacketsSent:N0}");
             WriteLine($"  Bytes In:        {FormatBytes(_server.Network.TotalBytesReceived)}");
             WriteLine($"  Bytes Out:       {FormatBytes(_server.Network.TotalBytesSent)}");
+            WriteHeader("Subsystems");
+            WriteLine($"  Spawn Points:    {_server.SpawnManager.GetSpawnPointCount()} (pending: {_server.SpawnManager.GetPendingRespawnCount()})");
+            WriteLine($"  Threat Tables:   {_server.ThreatManager.GetTableCount()}");
+            WriteLine($"  Spatial Grid:    {_server.SpatialGrid.GetEntityCount()} entries / {_server.SpatialGrid.GetCellCount()} cells");
+            WriteLine($"  Scheduled Events:{_server.EventScheduler.GetPendingCount()}");
+            WriteLine($"  Cooldowns:       {_server.CooldownManager.GetTrackedEntityCount()} entities");
+            var combatStats = _server.CombatManager;
+            WriteLine($"  Combat:          {combatStats.TotalKills} kills, {combatStats.TotalDamageDealt:N0} dmg, {combatStats.TotalHealingDone:N0} heals");
         }
 
         private void CmdPlayers(string[] args)
