@@ -50,6 +50,7 @@ namespace ErenshorDedicatedServer.Console
             Cmd("saveworld", "Save world state to disk", CmdSaveWorld);
             Cmd("saveplayers", "Save all connected players", CmdSavePlayers);
             Cmd("loglevel", "Set console log level", CmdLogLevel, "<debug|info|warning|error>");
+            Cmd("recording", "Show/control data recording status", CmdRecording, "[start|stop|reset|flush]");
             Cmd("entities", "Show entity count per zone", CmdEntities);
             Cmd("groups", "Show active groups", CmdGroups);
             Cmd("stats", "Show network statistics", CmdStats);
@@ -184,6 +185,13 @@ namespace ErenshorDedicatedServer.Console
             WriteLine($"  Auto-saves:      {autoSaves} (every {_server.Config.AutoSaveIntervalSeconds}s)");
             WriteLine($"  World State:     {(hasWorldSave ? "Saved" : "None")}");
             WriteLine($"  Spawn Defs:      {(spawnDefs ? "Loaded from file" : "Client-reported")}");
+            var recorder = _server.Persistence?.DataRecorder;
+            if (recorder != null)
+            {
+                var recStatus = _server.Config.DataRecordingComplete ? "Complete" :
+                    (recorder.IsRecording ? (recorder.IsFullGrab ? "Full Grab" : "Auto-Record") : "Inactive");
+                WriteLine($"  Recording:       {recStatus} ({recorder.TotalRecordedSpawns} spawns, {recorder.TotalRecordedNpcs} NPCs)");
+            }
         }
 
         private void CmdPlayers(string[] args)
@@ -522,6 +530,58 @@ namespace ErenshorDedicatedServer.Console
             }
             else
                 WriteError("Valid levels: debug, info, warning, error");
+        }
+
+        private void CmdRecording(string[] args)
+        {
+            var recorder = _server.Persistence?.DataRecorder;
+            if (recorder == null)
+            {
+                WriteError("Persistence system not initialized.");
+                return;
+            }
+
+            if (args.Length == 0)
+            {
+                // Show status
+                WriteHeader("Data Recording Status");
+                WriteLine($"  Recording:     {(recorder.IsRecording ? "ACTIVE" : "INACTIVE")}");
+                WriteLine($"  Full Grab:     {(recorder.IsFullGrab ? "ACTIVE" : "OFF")}");
+                WriteLine($"  Complete:      {_server.Config.DataRecordingComplete}");
+                WriteLine($"  Spawns:        {recorder.TotalRecordedSpawns} recorded");
+                WriteLine($"  NPCs:          {recorder.TotalRecordedNpcs} recorded");
+                WriteLine($"  Zones:         {recorder.ZonesRecorded}/{_server.Config.Zones.Count} recorded");
+                if (_server.Config.RecordedZones.Count > 0)
+                {
+                    WriteLine($"  Recorded:      {string.Join(", ", _server.Config.RecordedZones)}");
+                }
+                return;
+            }
+
+            switch (args[0].ToLower())
+            {
+                case "start":
+                    _server.Config.DataRecordingComplete = false;
+                    _server.Config.AutoRecordClientData = true;
+                    recorder.ResetRecording();
+                    WriteInfo("Recording started. Client data will be captured.");
+                    break;
+                case "stop":
+                    recorder.CompleteRecording();
+                    WriteInfo("Recording stopped and data flushed.");
+                    break;
+                case "reset":
+                    recorder.ResetRecording();
+                    WriteInfo("Recording reset. Existing data preserved, will re-record on next client data.");
+                    break;
+                case "flush":
+                    recorder.FlushToDisk();
+                    WriteInfo("Buffered data flushed to disk.");
+                    break;
+                default:
+                    WriteError("Usage: recording [start|stop|reset|flush]");
+                    break;
+            }
         }
 
         private void CmdEntities(string[] args)

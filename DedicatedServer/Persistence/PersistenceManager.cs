@@ -8,7 +8,7 @@ namespace ErenshorDedicatedServer.Persistence
 {
     /// <summary>
     /// Central persistence coordinator. Manages auto-save scheduling, startup loading,
-    /// and shutdown saving. Owns the individual persistence components and provides
+    /// shutdown saving, and data recording. Owns all persistence components and provides
     /// a unified interface for ServerCore.
     /// </summary>
     public class PersistenceManager
@@ -16,6 +16,7 @@ namespace ErenshorDedicatedServer.Persistence
         public SpawnDefinitionLoader SpawnLoader { get; }
         public PlayerPersistence PlayerPersistence { get; }
         public WorldStatePersistence WorldPersistence { get; }
+        public DataRecorder DataRecorder { get; }
 
         private readonly ServerConfig _config;
         private DateTime _lastAutoSave;
@@ -28,6 +29,7 @@ namespace ErenshorDedicatedServer.Persistence
             SpawnLoader = new SpawnDefinitionLoader(config);
             PlayerPersistence = new PlayerPersistence("data/players");
             WorldPersistence = new WorldStatePersistence("data/world_state.json");
+            DataRecorder = new DataRecorder(config, SpawnLoader);
 
             _lastAutoSave = DateTime.UtcNow;
         }
@@ -51,6 +53,9 @@ namespace ErenshorDedicatedServer.Persistence
                 WorldPersistence.RestoreWorldState(worldState, worldManager);
             }
 
+            // 3. Initialize data recorder (after loading, so it knows what's already on disk)
+            DataRecorder.Initialize();
+
             ServerLogger.Info("Persistent data loading complete.", "PERSIST");
         }
 
@@ -60,6 +65,9 @@ namespace ErenshorDedicatedServer.Persistence
         public void SaveAll(WorldManager worldManager, SpawnManager spawnManager, NetworkManager network)
         {
             ServerLogger.Info("Saving all persistent data...", "PERSIST");
+
+            // Flush any remaining recorded data
+            DataRecorder.FlushToDisk();
 
             // Save all connected players
             var sessions = network.GetAllSessions();
@@ -72,10 +80,13 @@ namespace ErenshorDedicatedServer.Persistence
         }
 
         /// <summary>
-        /// Called every tick to check if auto-save should run.
+        /// Called every tick to check if auto-save should run and to tick the data recorder.
         /// </summary>
         public void Tick(float deltaTime, WorldManager worldManager, SpawnManager spawnManager, NetworkManager network)
         {
+            // Tick data recorder (handles its own flush interval)
+            DataRecorder.Tick(deltaTime);
+
             if (_config.AutoSaveIntervalSeconds <= 0) return;
 
             if ((DateTime.UtcNow - _lastAutoSave).TotalSeconds >= _config.AutoSaveIntervalSeconds)

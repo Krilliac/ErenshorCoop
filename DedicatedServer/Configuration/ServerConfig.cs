@@ -133,6 +133,19 @@ namespace ErenshorDedicatedServer.Configuration
         [JsonProperty("auto_save_interval_seconds")]
         public int AutoSaveIntervalSeconds { get; set; } = 300;
 
+        // Data Recording
+        [JsonProperty("auto_record_client_data")]
+        public bool AutoRecordClientData { get; set; } = true;
+
+        [JsonProperty("full_data_grab_on_first_connect")]
+        public bool FullDataGrabOnFirstConnect { get; set; } = true;
+
+        [JsonProperty("data_recording_complete")]
+        public bool DataRecordingComplete { get; set; }
+
+        [JsonProperty("recorded_zones")]
+        public List<string> RecordedZones { get; set; } = new List<string>();
+
         public static ServerConfig Load(string path = null)
         {
             path ??= ConfigFileName;
@@ -225,6 +238,7 @@ namespace ErenshorDedicatedServer.Configuration
             AdminList ??= new List<ulong>();
             Whitelist ??= new List<ulong>();
             Zones ??= new List<ZoneConfig>();
+            RecordedZones ??= new List<string>();
         }
 
         private static ServerConfig CreateDefault()

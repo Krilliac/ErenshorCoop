@@ -510,6 +510,11 @@ namespace ErenshorDedicatedServer.Network
 
                     // Update spatial grid
                     _server.SpatialGrid?.UpdatePosition(spawnEntityId, pos, zone);
+
+                    // Record spawn data for persistence (auto-builds server database from client data)
+                    _server.Persistence?.DataRecorder.RecordSpawn(
+                        zone, spawnerId, npcId, pos, rot, spawnEntType, isRare, maxHP,
+                        syncStats, level, baseAC, baseHP, baseMR, basePR, baseVR, baseER, baseDMG, mhatkDelay);
                 }
                 catch (Exception ex)
                 {
@@ -517,6 +522,10 @@ namespace ErenshorDedicatedServer.Network
                     break;
                 }
             }
+
+            // Mark zone as recorded if data recorder is active
+            if (spawnCount > 0)
+                _server.Persistence?.DataRecorder.MarkZoneRecorded(zone);
 
             // Relay to targets
             RelayRawToTargets(targets, PacketType.ENTITY_SPAWN, reader);
